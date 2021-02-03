@@ -23,7 +23,11 @@ import random
 import tokenization
 import tensorflow as tf
 
-flags = tf.flags
+if tf.__version__[0] == '1':
+    flags = tf.flags
+else:
+    # from tf >= 2.0, tf.flags is moved to tf.compat.v1.flags
+    flags = tf.compat.v1.flags
 
 FLAGS = flags.FLAGS
 
@@ -98,7 +102,11 @@ def write_instance_to_example_files(instances, tokenizer, max_seq_length,
   """Create TF example files from `TrainingInstance`s."""
   writers = []
   for output_file in output_files:
-    writers.append(tf.python_io.TFRecordWriter(output_file))
+    if tf.__version__[0] == '1':
+      writers.append(tf.python_io.TFRecordWriter(output_file))
+    else:
+      # tf.python_io is moved to tf.compat.v1.python_io 
+      writers.append(tf.compat.v1.python_io.TFRecordWriter(output_file))
 
   writer_index = 0
 
@@ -146,8 +154,15 @@ def write_instance_to_example_files(instances, tokenizer, max_seq_length,
     total_written += 1
 
     if inst_index < 20:
-      tf.logging.info("*** Example ***")
-      tf.logging.info("tokens: %s" % " ".join(
+      if tf.__version__[0] == '1':
+        tf.logging.info("*** Example ***")
+        tf.logging.info("tokens: %s" % " ".join(
+          [tokenization.printable_text(x) for x in instance.tokens]))
+
+      else:
+        # from tf >= 2.0, tf.logging is moved to tf.compat.v1.logging 
+        tf.compat.v1.logging.info("*** Example ***")
+        tf.compat.v1.logging.info("tokens: %s" % " ".join(
           [tokenization.printable_text(x) for x in instance.tokens]))
 
       for feature_name in features.keys():
@@ -157,13 +172,20 @@ def write_instance_to_example_files(instances, tokenizer, max_seq_length,
           values = feature.int64_list.value
         elif feature.float_list.value:
           values = feature.float_list.value
-        tf.logging.info(
+        if tf.__version__[0] == '1':
+          tf.logging.info(
+            "%s: %s" % (feature_name, " ".join([str(x) for x in values])))
+        else:
+          tf.compat.v1.logging.info(
             "%s: %s" % (feature_name, " ".join([str(x) for x in values])))
 
   for writer in writers:
     writer.close()
 
-  tf.logging.info("Wrote %d total instances", total_written)
+  if tf.__version__[0] == '1':
+    tf.logging.info("Wrote %d total instances", total_written)
+  else:
+    tf.compat.v1.logging.info("Wrote %d total instances", total_written)
 
 
 def create_int_feature(values):
@@ -189,19 +211,35 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
   # (2) Blank lines between documents. Document boundaries are needed so
   # that the "next sentence prediction" task doesn't span between documents.
   for input_file in input_files:
-    with tf.gfile.GFile(input_file, "r") as reader:
-      while True:
-        line = tokenization.convert_to_unicode(reader.readline())
-        if not line:
-          break
-        line = line.strip()
+    if tf.__version__[0] == '1':
+      with tf.gfile.GFile(input_file, "r") as reader:
+        while True:
+          line = tokenization.convert_to_unicode(reader.readline())
+          if not line:
+            break
+          line = line.strip()
 
-        # Empty lines are used as document delimiters
-        if not line:
-          all_documents.append([])
-        tokens = tokenizer.tokenize(line)
-        if tokens:
-          all_documents[-1].append(tokens)
+          # Empty lines are used as document delimiters
+          if not line:
+            all_documents.append([])
+          tokens = tokenizer.tokenize(line)
+          if tokens:
+            all_documents[-1].append(tokens)
+    else:
+      # in tf == 2.4.1, tf.gfile is moved to tf.compat.v1.gfile
+      with tf.compat.v1.gfile.GFile(input_file, "r") as reader:
+        while True:
+          line = tokenization.convert_to_unicode(reader.readline())
+          if not line:
+            break
+          line = line.strip()
+
+          # Empty lines are used as document delimiters
+          if not line:
+            all_documents.append([])
+          tokens = tokenizer.tokenize(line)
+          if tokens:
+            all_documents[-1].append(tokens)
 
   # Remove empty documents
   all_documents = [x for x in all_documents if x]
@@ -434,18 +472,30 @@ def truncate_seq_pair(tokens_a, tokens_b, max_num_tokens, rng):
 
 
 def main(_):
-  tf.logging.set_verbosity(tf.logging.INFO)
+  if tf.__version__[0] == '1':
+    tf.logging.set_verbosity(tf.logging.INFO)
+  else:
+    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.INFO)
 
   tokenizer = tokenization.FullTokenizer(
       vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
 
   input_files = []
   for input_pattern in FLAGS.input_file.split(","):
-    input_files.extend(tf.gfile.Glob(input_pattern))
+    if tf.__version__[0] == '1':
+      input_files.extend(tf.gfile.Glob(input_pattern))
+    else:
+      input_files.extend(tf.compat.v1.gfile.Glob(input_pattern))
 
-  tf.logging.info("*** Reading from input files ***")
+  if tf.__version__[0] == '1':
+    tf.logging.info("*** Reading from input files ***")
+  else:
+    tf.compat.v1.logging.info("*** Reading from input files ***")
   for input_file in input_files:
-    tf.logging.info("  %s", input_file)
+    if tf.__version__[0] == '1':
+      tf.logging.info("  %s", input_file)
+    else:
+      tf.compat.v1.logging.info("  %s", input_file)
 
   rng = random.Random(FLAGS.random_seed)
   instances = create_training_instances(
@@ -454,9 +504,15 @@ def main(_):
       rng)
 
   output_files = FLAGS.output_file.split(",")
-  tf.logging.info("*** Writing to output files ***")
+  if tf.__version__[0] == '1':
+    tf.logging.info("*** Writing to output files ***")
+  else:
+    tf.compat.v1.logging.info("*** Writing to output files ***")
   for output_file in output_files:
-    tf.logging.info("  %s", output_file)
+    if tf.__version__[0] == '1':
+      tf.logging.info("  %s", output_file)
+    else:
+      tf.compat.v1.logging.info("  %s", output_file)
 
   write_instance_to_example_files(instances, tokenizer, FLAGS.max_seq_length,
                                   FLAGS.max_predictions_per_seq, output_files)
@@ -466,4 +522,8 @@ if __name__ == "__main__":
   flags.mark_flag_as_required("input_file")
   flags.mark_flag_as_required("output_file")
   flags.mark_flag_as_required("vocab_file")
-  tf.app.run()
+  if tf.__version__[0] == '1':
+    tf.app.run()
+  else:
+    # from tf >= 2.0, tf.app is moved to tf.compat.v1.app
+    tf.compat.v1.app.run()
